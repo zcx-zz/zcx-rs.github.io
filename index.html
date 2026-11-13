@@ -707,16 +707,17 @@
         .compare-box .compare-before img,.compare-box .compare-after img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;}
         .compare-box .compare-after{clip-path:inset(0 0 0 50%);z-index:2;}
         /* 前后对比滑块（细线版）：原来是 44×44 白色圆盘 + 投影、两个深灰三角嵌在盘里；
-           现在按参考图改成极简竖条 —— 2px 纯白竖线贯穿整图，中间一根 9×60 的白色竖条手柄，
-           两个白色小三角是手柄左右外侧的独立伪元素，不再画在手柄内部，也没有阴影和圆角。
+           现在按参考图改成极简竖条 —— 2px 纯白竖线贯穿整图，中间一根 9×60 的白色圆角竖条手柄，
+           两个白色小三角是手柄左右外侧的独立伪元素，不再画在手柄内部，也没有阴影。
            旋钮：线宽看 .compare-divider 的 width；手柄看 .compare-handle 的 9px / 60px；
+           圆角看 border-radius 的 999px（会自动收到短边一半 4.5px，两端半圆，想更方就改小）；
            三角大小看伪元素的 7px，与手柄的间距看 calc 里的 5px / 6px。
            handle 是 divider 的子元素，divider 横移时手柄和三角一起走，JS 拖动逻辑不用改。 */
         .compare-box .compare-divider{position:absolute;top:0;bottom:0;left:50%;width:2px;background:#fff;transform:translateX(-50%);z-index:3;cursor:var(--cur-horz),ew-resize;}
         /* 透明命中区：让「靠近控件」有个好点的手感，40px 只影响命中，不画任何东西。
            伪元素会继承 divider 的 cursor，所以不用再写一遍；手柄和三角在它之后绘制、命中优先。 */
         .compare-box .compare-divider::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:40px;transform:translateX(-50%);}
-        .compare-box .compare-handle{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:9px;height:60px;background:#fff;transition:box-shadow 0.35s ease;cursor:var(--cur-horz),ew-resize;}
+        .compare-box .compare-handle{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:9px;height:60px;background:#fff;border-radius:999px;transition:box-shadow 0.35s ease;cursor:var(--cur-horz),ew-resize;}
         .compare-box .compare-handle::before,.compare-box .compare-handle::after{content:"";position:absolute;top:50%;transform:translateY(-50%);width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;transition:transform 0.25s ease;}
         .compare-box .compare-handle::before{right:calc(100% + 5px);border-right:7px solid #fff;}
         .compare-box .compare-handle::after{left:calc(100% + 6px);border-left:7px solid #fff;}
