@@ -1698,7 +1698,7 @@
             const detail1TopRow = [
                 "https://img.alicdn.com/imgextra/i2/3952997314/O1CN01hoe6vKg9DkB1bRyA_!!3952997314.webp",
                 "https://img.alicdn.com/imgextra/i2/3952997314/O1CN01OdUczlwDVIC1bRyA_!!3952997314.webp",
-                "https://img.alicdn.com/imgextra/i2/3952997314/O1CN01ksC0v3vzoPI1bRyA_!!3952997314.webp"
+                "https://img.alicdn.com/imgextra/i3/3952997314/O1CN01DCfq1bjrV3K1bRyA_!!3952997314.webp"
             ];
             const detail1SecondRow = [
                 "https://img.alicdn.com/imgextra/i3/3952997314/O1CN01zF86k5Yi6sB1bRyA_!!3952997314.webp",
@@ -1897,23 +1897,23 @@
                     loadProgressFill.style.transform = "scaleX(1)";
                     loadProgressText.textContent = "100%";
                     loadingOverlay.classList.add("fade-out");
-                    /* ★ 预热从「淡出开始」改回「淡出完成后」才启动（仅桌面端）：
-                       原来在 fade-out 刚加 class 的这一刻就 boostPage3VideoPriority +
-                       scheduleWarmupDetailAssets，等于加载动画还在屏幕上淡出时，
-                       第三屏 4 路视频和详情图就已经一起开工下载，和首屏抢同一条
-                       HTTP/2 连接 —— 这正是「加载动画还在播，PC 端资源却已经一起加载」的原因。
-                       现在桌面端把预热挂到淡出 transition（450ms）结束之后，加载动画彻底消失、
-                       首屏独占完带宽，才开始懒加载/预热。
-                       ★ 移动端不动：保持原来「淡出开始就立即触发」的节奏。 */
-                    if (isMobile()) {
+                    /* ★ 预热等 DCL 之后才开工（两端一致）：
+                       加载层现在已改成「不等 DOMContentLoaded 就淡出」，
+                       若仍按「淡出后固定 480ms」启动，弱网下 HTML 后半段可能还在下载，
+                       4 路视频 + 详情图会倒过来抢首包剩余字节的带宽。
+                       DCL 之后再等 480ms（让 520ms 的淡出走完），顺序变成
+                       「首屏先露面 → 文档收完 → 才轮到后台懒加载」。
+                       本地 DCL 约 200ms，桌面端实际开工时间几乎不变。 */
+                    const startWarmup = () => {
                         boostPage3VideoPriority();
                         scheduleWarmupDetailAssets();
-                    } else {
-                        setTimeout(() => {
-                            boostPage3VideoPriority();
-                            scheduleWarmupDetailAssets();
-                        }, 480);
-                    }
+                    };
+                    const whenDocReady = (fn) => {
+                        if (document.readyState !== "loading") fn();
+                        else document.addEventListener("DOMContentLoaded", fn, { once: true });
+                    };
+                    if (isMobile()) whenDocReady(startWarmup);
+                    else whenDocReady(() => setTimeout(startWarmup, 480));
                     /* ★ 原来这里是 `isMobile() ? 220 : 500`：手机上 220ms 就 display:none，
                        把 450ms 的淡出砍掉一半 —— 手机上那一下其实是「啪」地消失。
                        现在两端统一推到 640ms（> 520ms 的淡出），滚动锁照旧早点放开。 */
@@ -2157,7 +2157,7 @@
                 'O1CN01Y0XRgD23trxhpUhZC_!!3952997314': 183858,
                 'O1CN01tiuUo723trxhpSQF1_!!3952997314': 220976,
                 'O1CN01eTqKihzCZWH1bRyA_!!3952997314': 337422,
-                'O1CN01ksC0v3vzoPI1bRyA_!!3952997314': 350666,
+                'O1CN01DCfq1bjrV3K1bRyA_!!3952997314': 372866,
                 'O1CN01z2M1e923trxi5TvZX_!!3952997314': 359912,
                 'O1CN01QcOZmNTdsvH1bRyA_!!3952997314': 387754,
                 'O1CN01zpgn1V23trxiNKiUb_!!3952997314': 430056,
@@ -4914,17 +4914,19 @@
             setProgress(5);
             const forceFinishTimeout = isMobile() ? 3500 : 6000;
             setTimeout(() => { if (!complete) finishLoading(); }, forceFinishTimeout);
-            /* ★ 淡出的门槛只剩「DOM 就绪 + 180ms 心跳」：
-               trackCriticalImages() 那几张图是「顺手预热详情页」用的，首屏第 0 屏
-               只有纯文字和内联 SVG，一张都不用等 —— 原来把它们 race 进 Promise.all
-               （上限 800 / 1200ms），等于拿页面出现的时间去等「不急着要的东西」。
-               现在按用户要的「画面先出现，图片视频随后一起加载」改成只发起、不等待：
-               preloadImage 在后台继续下载，preloadedImages 去重集合照样记录，
-               之后 preloadDetailAssets / warmup 跑到同一张图会自动跳过，不会下两遍。
-               进度条在淡出前能跟着真实下载填多少算多少（收尾由 finishLoading 补到 100%）。
-               上面 forceFinishTimeout（3500 / 6000）仍是硬兜底。 */
+            /* ★ 淡出不再等 DOMContentLoaded —— 这才是「页面半天不出来」的那道门。
+               DCL 要等整份 742KB 文档（含末尾约 500KB 的 3D 吊牌 / 工具脚本）全部
+               下载并解析执行完才触发。弱网下加载动画 8KB 就能画出来，却要一直转到
+               最后一个字节到齐才肯让首屏露面；懒加载把图片 / 视频 / three.js 都挪走了，
+               唯独没挪动「HTML 自己」，也没解开这道扣在 DCL 上的锁。
+               执行到本行时主 CSS、首屏 DOM、加载层早已就绪，resetPage3Cards /
+               syncHomeSection / scrollTo / 滚动锁也全部做完了，首屏具备完整显示条件；
+               后面那些脚本只管最后一屏的吊牌，让它们继续在后台解析即可。
+               只留 180ms 心跳对齐进度条，finishLoading 里的 minDisplayTime(400ms)
+               另作兜底，不会「闪一下就没」；forceFinishTimeout 仍是硬兜底。
+               配套：资源预热已改为等 DCL 才开工，避免和文档剩余字节抢带宽。 */
             trackCriticalImages();
-            Promise.all([new Promise(r => setTimeout(r, 180)), new Promise(r => { if (document.readyState !== "loading") r(); else document.addEventListener("DOMContentLoaded", r, { once: true }); })]).then(() => { finishLoading(); }).catch(() => { finishLoading(); });
+            new Promise(r => setTimeout(r, 180)).then(() => { finishLoading(); }).catch(() => { finishLoading(); });
             updateScroll();
 
             /* 拖拽吊牌松手 → 回弹到第一页（组件派发自定义事件通知这里）。
